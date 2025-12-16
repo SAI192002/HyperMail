@@ -1,0 +1,5 @@
+{
+  "name": "Hypermail AI",
+  "description": "A high-performance, keyboard-centric email client clone inspired by Superhuman, featuring Gemini-powered summarization, auto-reply, and writing improvements.",
+  "requestFramePermissions": []
+}
