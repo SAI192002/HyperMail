@@ -315,7 +315,7 @@ import React, { useEffect, useState } from 'react';
 import { User } from '../types';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { ArrowRight, Zap, Settings, Save, AlertCircle, Copy, Info, Lock } from 'lucide-react';
+import { ArrowRight, Zap, AlertCircle } from 'lucide-react';
 import { saveUserToken } from '../services/gmailSyncService';
 import { fetchUserProfile } from '../services/authService';
 
@@ -352,37 +352,27 @@ const getEnvVar = (key: string): string | undefined => {
 
 const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
   const [error, setError] = useState<string | null>(null);
-  const [manualId, setManualId] = useState('');
-  const [manualSecret, setManualSecret] = useState('');
-  const [origin, setOrigin] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-        setOrigin(window.location.origin);
-    }
-  }, []);
 
   // Priority: Env -> LocalStorage (Fallback only if Env is missing)
   const envClientId = getEnvVar('VITE_GOOGLE_CLIENT_ID') || getEnvVar('GOOGLE_CLIENT_ID');
-  // Secret is optional for Implicit Flow
-  const envClientSecret = getEnvVar('VITE_GOOGLE_CLIENT_SECRET') || getEnvVar('GOOGLE_CLIENT_SECRET');
-
-  const [clientId, setClientId] = useState<string | null>(envClientId || localStorage.getItem('hypermail_google_client_id') || null);
-  const [clientSecret, setClientSecret] = useState<string | null>(envClientSecret || localStorage.getItem('hypermail_google_client_secret') || null);
-
-  const isUsingEnv = !!envClientId;
+  
+  // We still check localStorage for backward compatibility if user set it previously
+  const [clientId] = useState<string | null>(envClientId || localStorage.getItem('hypermail_google_client_id') || null);
 
   // OAuth 2.0 Implicit Flow (Token Client)
-  // This removes the need for "offline access" scope and Client Secret exchange.
   const handleGoogleLogin = () => {
-    if (!window.google || !clientId) {
-      setError("Configuration missing. Client ID is required.");
+    if (!window.google) {
+      setError("Google Sign-In script not loaded.");
+      return;
+    }
+    if (!clientId) {
+      setError("Missing VITE_GOOGLE_CLIENT_ID in environment variables.");
       return;
     }
 
     try {
-        // Use initTokenClient for Implicit Flow (No refresh token, no secret needed)
+        // Use initTokenClient for Implicit Flow
         const client = window.google.accounts.oauth2.initTokenClient({
           client_id: clientId,
           scope: 'https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/gmail.send profile email',
@@ -390,7 +380,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
             if (response.access_token) {
                setIsLoading(true);
                try {
-                   // Direct access token usage
                    const accessToken = response.access_token;
                    const expiresIn = response.expires_in; // seconds
                    
@@ -402,18 +391,14 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                        name: profile.name,
                        email: profile.email,
                        accessToken: accessToken,
-                       // No refresh token in implicit flow
-                       refreshToken: undefined,
                        expiresAt: Date.now() + (expiresIn * 1000),
                        clientId: clientId, 
-                       clientSecret: clientSecret || undefined
+                       // No clientSecret needed for implicit flow
                    };
 
                    // 1. Persist tokens to local storage
                    const userForStorage = { ...user };
-                   delete userForStorage.clientSecret; 
                    delete userForStorage.clientId;
-                   
                    localStorage.setItem('hypermail_user', JSON.stringify(userForStorage));
 
                    // 2. Persist Tokens to Supabase (Secure Store Backup)
@@ -422,7 +407,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                            user.email, 
                            user.accessToken!, 
                            user.id, 
-                           undefined, // No refresh token
+                           undefined, 
                            user.expiresAt
                        );
                    } catch (dbErr) {
@@ -438,41 +423,16 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                    setIsLoading(false);
                }
             } else {
-                setError("Login cancelled or failed to get access token.");
+                // User cancelled or error
             }
           },
         });
-        // Request Access Token directly
+        
         client.requestAccessToken();
     } catch (err) {
         console.error("Auth Error:", err);
         setError("Error initializing Google Auth.");
     }
-  };
-
-  const handleSaveConfig = () => {
-      if (manualId.trim()) {
-          localStorage.setItem('hypermail_google_client_id', manualId.trim());
-          setClientId(manualId.trim());
-          
-          if (manualSecret.trim()) {
-            localStorage.setItem('hypermail_google_client_secret', manualSecret.trim());
-            setClientSecret(manualSecret.trim());
-          }
-          
-          setError(null);
-      } else {
-          setError("Client ID is required.");
-      }
-  };
-
-  const handleResetConfig = () => {
-      localStorage.removeItem('hypermail_google_client_id');
-      localStorage.removeItem('hypermail_google_client_secret');
-      setClientId(null);
-      setClientSecret(null);
-      setManualId('');
-      setManualSecret('');
   };
 
   const handleDemoLogin = () => {
@@ -486,11 +446,6 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
     // Persist demo user so refresh works
     localStorage.setItem('hypermail_user', JSON.stringify(demoUser));
     onLogin(demoUser);
-  };
-
-  const copyOrigin = () => {
-      navigator.clipboard.writeText(origin);
-      alert(`Copied ${origin} to clipboard!`);
   };
 
   return (
@@ -510,110 +465,36 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
           <p className="text-muted-foreground text-sm">Experience the fastest email client ever made.</p>
         </div>
 
-        <div className="space-y-4 flex flex-col items-center">
-          
-          {clientId ? (
-            <div className="w-full space-y-4">
-                 <button 
-                    onClick={handleGoogleLogin}
-                    disabled={isLoading}
-                    className="w-full flex items-center justify-center space-x-3 bg-white text-black border border-gray-300 hover:bg-gray-50 py-2.5 rounded-md font-medium transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                    {isLoading ? (
-                        <span>Authenticating...</span>
-                    ) : (
-                        <>
-                            <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-                            <span>Sign in with Google</span>
-                        </>
-                    )}
-                </button>
-
-                {!isUsingEnv && (
-                    <div className="rounded-md bg-muted/30 border border-border p-3">
-                        <div className="flex items-start space-x-2">
-                            <Info className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
-                            <div className="text-xs text-muted-foreground">
-                                <p className="font-medium text-foreground mb-1">Configuration Help</p>
-                                <p className="mb-2">Ensure your Google Cloud Project is set to <strong>Web Application</strong> and includes this origin:</p>
-                                <div 
-                                    onClick={copyOrigin}
-                                    className="bg-background border border-border rounded px-2 py-1.5 font-mono text-[10px] text-foreground flex items-center justify-between cursor-pointer hover:border-primary/50 transition-colors group"
-                                >
-                                    <span className="truncate">{origin}</span>
-                                    <Copy className="w-3 h-3 opacity-50 group-hover:opacity-100" />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+        <div className="space-y-4 flex flex-col items-center w-full">
+            <button 
+                onClick={handleGoogleLogin}
+                disabled={isLoading}
+                className="w-full flex items-center justify-center space-x-3 bg-white text-black border border-gray-300 hover:bg-gray-50 py-2.5 rounded-md font-medium transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+            >
+                {isLoading ? (
+                    <span>Authenticating...</span>
+                ) : (
+                    <>
+                        <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
+                        <span>Sign in with Google</span>
+                    </>
                 )}
-            </div>
-          ) : (
-             <div className="w-full space-y-3">
-                 <div className="p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-md text-yellow-500 text-xs text-center">
-                    Google Client Configuration Required
-                 </div>
-                 
-                 <div className="space-y-2">
-                     <input 
-                        className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary"
-                        placeholder="Client ID (e.g., 123...apps.googleusercontent.com)"
-                        value={manualId}
-                        onChange={(e) => setManualId(e.target.value)}
-                     />
-                     <div className="relative opacity-50 hover:opacity-100 transition-opacity">
-                        <input 
-                            className="w-full bg-background border border-border rounded-md px-3 py-2 text-sm outline-none focus:ring-1 focus:ring-primary pr-8"
-                            placeholder="Client Secret (Optional)"
-                            type="password"
-                            value={manualSecret}
-                            onChange={(e) => setManualSecret(e.target.value)}
-                        />
-                        <Lock className="w-4 h-4 text-muted-foreground absolute right-2 top-2.5 opacity-50" />
-                     </div>
-                     <button 
-                        onClick={handleSaveConfig}
-                        className="w-full bg-primary text-primary-foreground px-3 py-2 rounded-md hover:opacity-90 transition-opacity flex items-center justify-center space-x-2"
-                     >
-                        <Save className="w-4 h-4" />
-                        <span>Save Configuration</span>
-                     </button>
-                 </div>
-                 <p className="text-[10px] text-muted-foreground text-center">
-                    Stored locally.
-                 </p>
-             </div>
-          )}
+            </button>
 
-          <div className="w-full flex items-center space-x-2 pt-2">
-               <button 
+            <button 
                 onClick={handleDemoLogin}
-                className={cn(
-                    "flex-1 flex items-center justify-center space-x-2 bg-secondary text-secondary-foreground py-2.5 rounded-md font-medium transition-all hover:bg-secondary/80",
-                )}
-              >
-                <span>Enter Demo</span>
+                className="w-full flex items-center justify-center space-x-2 bg-secondary text-secondary-foreground py-2.5 rounded-md font-medium transition-all hover:bg-secondary/80"
+            >
+                <span>Enter Demo Mode</span>
                 <ArrowRight className="w-4 h-4" />
-              </button>
-          </div>
-            
-          {/* Only show Reset if manual config was used/stored */}
-          {(!isUsingEnv && (clientId || clientSecret)) && (
-              <button 
-                onClick={handleResetConfig}
-                className="text-[10px] text-muted-foreground hover:text-foreground flex items-center space-x-1"
-              >
-                  <Settings className="w-3 h-3" />
-                  <span>Reset Configuration</span>
-              </button>
-          )}
+            </button>
 
-          {error && (
-            <div className="w-full bg-destructive/10 border border-destructive/20 rounded-md p-3 text-destructive text-xs flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4" />
-                <span>{error}</span>
-            </div>
-          )}
+            {error && (
+                <div className="w-full bg-destructive/10 border border-destructive/20 rounded-md p-3 text-destructive text-xs flex items-center space-x-2 mt-4">
+                    <AlertCircle className="w-4 h-4" />
+                    <span>{error}</span>
+                </div>
+            )}
         </div>
 
         <div className="mt-8 pt-6 border-t border-border flex justify-between items-center text-xs text-muted-foreground">
@@ -621,7 +502,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
                 <Zap className="w-3 h-3" />
                 <span>Powered by Gemini 2.5</span>
             </div>
-            <div>v1.1.1 (Implicit)</div>
+            <div>v1.2.0</div>
         </div>
       </div>
     </div>
