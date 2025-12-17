@@ -41,7 +41,7 @@ const AppContent: React.FC = () => {
       restore, 
       deleteForever, 
       snoozeEmail,
-      emptyTrash,
+      emptyTrash, 
       reset: resetEmails 
   } = useEmails(user, activeFolder);
 
@@ -196,10 +196,8 @@ const AppContent: React.FC = () => {
         return;
     }
 
+    // Modal Specific shortcuts are handled inside ComposeModal now to access local state
     if (isTyping) {
-        if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && composeState.isOpen) {
-            handleComposeSend(composeState);
-        }
         return;
     }
 

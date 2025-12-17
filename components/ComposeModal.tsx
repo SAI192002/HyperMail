@@ -55,6 +55,24 @@ const ComposeModal: React.FC<ComposeModalProps> = ({ state, onClose, onSend, isS
     }
   }, [state.isOpen, state.to]);
 
+  // Handle Keyboard Shortcuts (Cmd+Enter to Send) locally to capture current state
+  useEffect(() => {
+      if (!state.isOpen) return;
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+              e.preventDefault();
+              e.stopPropagation(); // Prevent bubbling to App
+              if (!isSending) {
+                  onSend({ ...state, to, subject, body });
+              }
+          }
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [state, to, subject, body, isSending, onSend]);
+
   if (!state.isOpen) return null;
 
   const handleAiDraft = async () => {
