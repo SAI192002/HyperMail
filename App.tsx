@@ -154,14 +154,18 @@ const AppContent: React.FC = () => {
   const paletteActions = {
       compose: () => handleComposeOpen(),
       search: () => {
-          // In a real app, this would focus the search bar
-          // For now, we'll just show a toast as we don't have a global search focus ref yet
-          // or we can reuse the Palette as the search input in future iterations
           addToast("Search not fully implemented yet", "info");
       },
       logout: handleLogout,
       archiveSelected: () => selectedEmailId && archive(selectedEmailId, displayEmails),
-      deleteSelected: () => selectedEmailId && moveToTrash(selectedEmailId, displayEmails),
+      deleteSelected: () => {
+          if (!selectedEmailId) return;
+          if (activeFolder === FolderType.TRASH) {
+              deleteForever(selectedEmailId, displayEmails);
+          } else {
+              moveToTrash(selectedEmailId, displayEmails);
+          }
+      },
       snoozeSelected: (hours: number) => {
           if (selectedEmailId) {
              const date = new Date();
@@ -196,7 +200,6 @@ const AppContent: React.FC = () => {
         return;
     }
 
-    // Modal Specific shortcuts are handled inside ComposeModal now to access local state
     if (isTyping) {
         return;
     }
@@ -231,7 +234,11 @@ const AppContent: React.FC = () => {
             case KEYBOARD_SHORTCUTS.DELETE: {
                 if (selectedEmailId) {
                     e.preventDefault();
-                    moveToTrash(selectedEmailId, displayEmails);
+                    if (activeFolder === FolderType.TRASH) {
+                        deleteForever(selectedEmailId, displayEmails);
+                    } else {
+                        moveToTrash(selectedEmailId, displayEmails);
+                    }
                 }
                 break;
             }
@@ -264,7 +271,7 @@ const AppContent: React.FC = () => {
             break;
         }
     }
-  }, [selectedEmailId, displayEmails, isPaletteOpen, composeState, user, selectedEmail, currentView, sync]);
+  }, [selectedEmailId, displayEmails, isPaletteOpen, composeState, user, selectedEmail, currentView, sync, activeFolder, moveToTrash, deleteForever]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);
@@ -315,7 +322,13 @@ const AppContent: React.FC = () => {
                     onArchive={(id) => archive(id, displayEmails)}
                     onReply={handleReply}
                     onUpdateEmail={updateEmail}
-                    onDelete={(id) => moveToTrash(id, displayEmails)}
+                    onDelete={(id) => {
+                        if (activeFolder === FolderType.TRASH) {
+                            deleteForever(id, displayEmails);
+                        } else {
+                            moveToTrash(id, displayEmails);
+                        }
+                    }}
                     onRestore={restore}
                     onDeleteForever={(id) => deleteForever(id, displayEmails)}
                     onSnooze={(id, date) => snoozeEmail(id, date, displayEmails)}

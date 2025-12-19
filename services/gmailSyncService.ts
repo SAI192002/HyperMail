@@ -378,6 +378,18 @@ export const deleteMessage = async (accessToken: string, messageId: string) => {
 };
 
 /**
+ * Delete message record from Supabase
+ */
+export const deleteEmailRecord = async (userId: string, messageId: string) => {
+    if (!supabase) return;
+    const { error } = await (supabase.from('emails') as any)
+        .delete()
+        .eq('user_id', userId)
+        .eq('message_id', messageId);
+    if (error) console.error("Error deleting email record:", error);
+};
+
+/**
  * Update AI Metadata (Summary, Intent, Priority, Snooze) in Supabase
  */
 export const updateEmailMetadata = async (
@@ -421,7 +433,7 @@ export const syncGmailToSupabase = async (accessToken: string, email: string, go
         
         // 1. Fetch Messages from Gmail
         const listRes = await fetch(
-            'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=50', // Reduced to 50 for AI speed
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30', // Reduced to 30 for AI speed
             { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         

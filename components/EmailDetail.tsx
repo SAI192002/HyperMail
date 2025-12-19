@@ -229,7 +229,7 @@ const EmailDetail: React.FC<EmailDetailProps> = ({ email, onArchive, onReply, us
                         <RotateCcw className="w-4 h-4" />
                     </button>
                      {isInTrash && (
-                        <button className="p-2 hover:bg-muted text-muted-foreground hover:text-destructive rounded-md transition-colors" title="Delete Forever" onClick={() => onDeleteForever?.(email.id)}>
+                        <button className="p-2 hover:bg-muted text-muted-foreground hover:text-destructive rounded-md transition-colors" title="Delete Permanently (d)" onClick={() => onDeleteForever?.(email.id)}>
                             <Trash2 className="w-4 h-4 text-destructive" />
                         </button>
                      )}
@@ -320,12 +320,9 @@ const EmailDetail: React.FC<EmailDetailProps> = ({ email, onArchive, onReply, us
             ) : (
                 <div className="space-y-6">
                     {processedMessages.map((msg, idx) => {
-                        const isLast = idx === processedMessages.length - 1;
-                        // Use the bodyDisplay from our memoized processor
-                        const htmlContent = (msg as any).bodyDisplay || msg.body;
-                        
-                        // Check if this message is from "me" (the user)
                         const isMe = user && msg.fromEmail.toLowerCase() === user.email.toLowerCase();
+                        const isLast = idx === processedMessages.length - 1;
+                        const htmlContent = (msg as any).bodyDisplay || msg.body;
 
                         return (
                             <div key={msg.id} className={cn("flex flex-col", !isLast && "border-b border-border pb-6 mb-6 opacity-80 hover:opacity-100 transition-opacity")}>

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Email, FolderType, User } from '../types';
-import { syncGmailToSupabase, trashMessage, untrashMessage, deleteMessage, updateEmailMetadata } from '../services/gmailSyncService';
+import { syncGmailToSupabase, trashMessage, untrashMessage, deleteMessage, updateEmailMetadata, deleteEmailRecord } from '../services/gmailSyncService';
 import { MOCK_EMAILS } from '../constants';
 import { useToast } from '../contexts/ToastContext';
 
@@ -45,7 +45,7 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
             }
         });
 
-        // 2. Clear Old Trash
+        // 2. Auto-Clear Trash
         if (user?.accessToken) {
             const oldTrash = emails.filter(e => e.folder === 'trash' && new Date(e.date).getTime() < oneDayAgo);
             if (oldTrash.length > 0) {
@@ -53,6 +53,7 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
                 oldTrash.forEach(async (email) => {
                     setEmails(prev => prev.filter(e => e.id !== email.id));
                     await deleteMessage(user.accessToken!, email.id);
+                    if (user?.id) await deleteEmailRecord(user.id, email.id);
                 });
             }
         }
@@ -69,18 +70,8 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
     
     if (result.success && result.emails.length > 0) {
         setEmails(prev => {
-            // Preserve local overrides (like snoozeUntil) if not present in new fetch
-            // Though our sync service now tries to fetch snoozeUntil from DB
-            const localMap = new Map<string, Email>();
-            prev.forEach(e => localMap.set(e.id, e));
-            
-            return result.emails.map(newEmail => {
-                const existing = localMap.get(newEmail.id);
-                // If existing has snooze data from DB (fetched previously) or local state, honor it if newer
-                // Actually, the sync result already includes metadata from DB.
-                // We just need to ensure we don't lose transient UI state if any.
-                return newEmail;
-            });
+            // Preserve local overrides if needed, though sync result is now the source of truth
+            return result.emails;
         });
     } else if (result.error && result.error.status === 401) {
         addToast("Session expired. Please login again.", "error");
@@ -152,10 +143,13 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
   const deleteForever = async (id: string, currentViewEmails: Email[]) => {
       selectNextEmail(id, currentViewEmails);
       setEmails(prev => prev.filter(e => e.id !== id));
-      addToast("Permanently Deleted", "info");
+      addToast("Permanently Deleted from Gmail", "info");
       
       if (user?.accessToken) {
           await deleteMessage(user.accessToken, id);
+      }
+      if (user?.id) {
+          await deleteEmailRecord(user.id, id);
       }
   };
 
@@ -170,6 +164,7 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
       if (user?.accessToken) {
           for (const email of trashEmails) {
               await deleteMessage(user.accessToken, email.id);
+              if (user?.id) await deleteEmailRecord(user.id, email.id);
           }
       }
   };
