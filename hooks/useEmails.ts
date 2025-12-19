@@ -51,9 +51,11 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
             if (oldTrash.length > 0) {
                 console.log(`Auto-clearing ${oldTrash.length} old trash emails...`);
                 oldTrash.forEach(async (email) => {
-                    setEmails(prev => prev.filter(e => e.id !== email.id));
-                    await deleteMessage(user.accessToken!, email.id);
-                    if (user?.id) await deleteEmailRecord(user.id, email.id);
+                    const success = await deleteMessage(user.accessToken!, email.id);
+                    if (success) {
+                        setEmails(prev => prev.filter(e => e.id !== email.id));
+                        if (user?.id) await deleteEmailRecord(user.id, email.id);
+                    }
                 });
             }
         }
@@ -118,7 +120,10 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
       addToast("Moved to Trash", "info");
 
       if (user?.accessToken) {
-          await trashMessage(user.accessToken, id);
+          const success = await trashMessage(user.accessToken, id);
+          if (!success) {
+              addToast("Gmail Trash failed. Check permissions.", "error");
+          }
       }
   };
 
@@ -142,14 +147,23 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
 
   const deleteForever = async (id: string, currentViewEmails: Email[]) => {
       selectNextEmail(id, currentViewEmails);
+      // Optimistic removal
+      const originalEmails = [...emails];
       setEmails(prev => prev.filter(e => e.id !== id));
       addToast("Permanently Deleted from Gmail", "info");
       
       if (user?.accessToken) {
-          await deleteMessage(user.accessToken, id);
-      }
-      if (user?.id) {
-          await deleteEmailRecord(user.id, id);
+          const success = await deleteMessage(user.accessToken, id);
+          if (success) {
+              if (user?.id) await deleteEmailRecord(user.id, id);
+          } else {
+              // Rollback or alert on failure
+              setEmails(originalEmails);
+              addToast("Permanent delete failed. You might need to Re-login for permission.", "error");
+          }
+      } else {
+          // Fallback for demo mode
+          if (user?.id) await deleteEmailRecord(user.id, id);
       }
   };
 
@@ -163,8 +177,10 @@ export const useEmails = (user: User | null, activeFolder: FolderType) => {
 
       if (user?.accessToken) {
           for (const email of trashEmails) {
-              await deleteMessage(user.accessToken, email.id);
-              if (user?.id) await deleteEmailRecord(user.id, email.id);
+              const success = await deleteMessage(user.accessToken, email.id);
+              if (success && user?.id) {
+                  await deleteEmailRecord(user.id, email.id);
+              }
           }
       }
   };

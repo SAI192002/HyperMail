@@ -338,6 +338,10 @@ export const trashMessage = async (accessToken: string, messageId: string) => {
             method: 'POST',
             headers: { Authorization: `Bearer ${accessToken}` }
         });
+        if (!res.ok) {
+            const err = await res.json();
+            console.error("Gmail Trash Error:", err);
+        }
         return res.ok;
     } catch (e) {
         console.error("Error trashing message:", e);
@@ -370,6 +374,10 @@ export const deleteMessage = async (accessToken: string, messageId: string) => {
             method: 'DELETE',
             headers: { Authorization: `Bearer ${accessToken}` }
         });
+        if (!res.ok) {
+            const err = await res.json();
+            console.error("Gmail Delete Error:", err);
+        }
         return res.ok;
     } catch (e) {
         console.error("Error deleting message:", e);
@@ -433,7 +441,7 @@ export const syncGmailToSupabase = async (accessToken: string, email: string, go
         
         // 1. Fetch Messages from Gmail
         const listRes = await fetch(
-            'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30', // Reduced to 30 for AI speed
+            'https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=30', // Reduced to 10 for AI speed
             { headers: { Authorization: `Bearer ${accessToken}` } }
         );
         
