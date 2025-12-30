@@ -1,4 +1,3 @@
-
 export interface Email {
   id: string;
   threadId: string; // Gmail Thread ID
@@ -58,6 +57,8 @@ export type ComposeState = {
   to: string;
   subject: string;
   body: string;
+  incomingEmailBody?: string; // The content of the email being replied to
+  incomingEmailSummary?: string; // The AI generated summary of the email/thread
   threadId?: string;
   replyToMessageId?: string;
   isMinimizing?: boolean;

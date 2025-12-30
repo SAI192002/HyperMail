@@ -55,6 +55,12 @@ const AppContent: React.FC = () => {
       reset: resetContacts
   } = useContacts(user);
 
+  // Global refresh that syncs both emails and contacts
+//   const handleRefresh = useCallback(() => {
+//     sync();
+//     refreshContacts();
+//   }, [sync, refreshContacts]);
+
   // Filter Logic
   const displayEmails = emails.filter(e => {
       if (activeFolder === FolderType.INBOX) return e.folder === 'inbox' || (!e.folder && !e.isRead);
@@ -109,7 +115,8 @@ const AppContent: React.FC = () => {
         
         setComposeState(prev => ({ ...prev, isOpen: false }));
         addToast("Email sent successfully", "success");
-        setTimeout(() => sync(), 1000);
+        // Trigger a full refresh after sending
+        // setTimeout(() => handleRefresh(), 1000);
         
       } catch (err: any) {
           console.error("Failed to send email:", err);
@@ -130,6 +137,8 @@ const AppContent: React.FC = () => {
           to: initialState.to || '',
           subject: initialState.subject || '',
           body: initialState.body || '',
+          incomingEmailBody: initialState.incomingEmailBody,
+          incomingEmailSummary: initialState.incomingEmailSummary,
           threadId: initialState.threadId,
           replyToMessageId: initialState.replyToMessageId
       });
@@ -145,6 +154,8 @@ const AppContent: React.FC = () => {
         to: emailToReply.fromEmail,
         subject: getReplySubject(emailToReply.subject),
         body: '',
+        incomingEmailBody: emailToReply.body, // Pass the original email body for context
+        incomingEmailSummary: emailToReply.summary, // Pass the AI summary if it exists
         threadId: emailToReply.threadId,
         replyToMessageId: emailToReply.messageIdHeader
      });
@@ -266,12 +277,12 @@ const AppContent: React.FC = () => {
         case 'r': {
             if (!isTyping && e.shiftKey) {
                 e.preventDefault();
-                sync();
+                // handleRefresh();
             }
             break;
         }
     }
-  }, [selectedEmailId, displayEmails, isPaletteOpen, composeState, user, selectedEmail, currentView, sync, activeFolder, moveToTrash, deleteForever]);
+  }, [selectedEmailId, displayEmails, isPaletteOpen, composeState, user, selectedEmail, currentView, activeFolder, moveToTrash, deleteForever]);
 
   useEffect(() => {
     window.addEventListener('keydown', handleKeyDown);

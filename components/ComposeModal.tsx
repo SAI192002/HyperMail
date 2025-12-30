@@ -78,7 +78,14 @@ const ComposeModal: React.FC<ComposeModalProps> = ({ state, onClose, onSend, isS
   const handleAiDraft = async () => {
     if (!aiPrompt) return;
     setIsAiLoading(true);
-    const result = await generateDraftReply(state.subject || "General Inquiry", aiPrompt);
+    // CRITICAL: Pass BOTH state.incomingEmailBody and state.incomingEmailSummary 
+    // to give the AI a complete picture of the conversation context.
+    const result = await generateDraftReply(
+        state.subject || "General Inquiry", 
+        aiPrompt, 
+        state.incomingEmailBody,
+        state.incomingEmailSummary
+    );
     setBody(result); 
     setIsAiLoading(false);
     setShowAiInput(false);
